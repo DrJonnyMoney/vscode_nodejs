@@ -7,12 +7,18 @@ ARG TARGETARCH=amd64
 
 USER root
 
+# Set s6 behavior to match official image
+ENV S6_BEHAVIOUR_IF_STAGE2_FAILS=2
+ENV S6_CMD_WAIT_FOR_SERVICES_MAXTIME=300000
+
 # args - software versions
 # https://open-vsx.org/extension/ms-python/python
 # https://open-vsx.org/extension/ms-toolsai/jupyter
 # https://github.com/ipython/ipykernel/releases
 ARG CODESERVER_PYTHON_VERSION=2025.0.0
-ARG CODESERVER_JUPYTER_VERSION=2024.11.0
+ARG CODESERVER_JUPYTER_VERSION=2022.3.1000752054
+ARG CODESERVER_JUPYTER_RENDERERS_VERSION=1.0.9
+ARG CODESERVER_JUPYTER_KEYMAP_VERSION=1.0.0
 ARG IPYKERNEL_VERSION=6.29.5
 ARG MINIFORGE_VERSION=24.11.3-0
 ARG PIP_VERSION=24.3.1
@@ -33,6 +39,15 @@ RUN mkdir -pv ${CONDA_DIR} \
 # Copy the 02-conda-init file from the repository to the container
 COPY 02-conda-init /etc/cont-init.d/
 RUN chmod 755 /etc/cont-init.d/02-conda-init
+
+# Create a simplified code-server run script
+RUN echo '#!/command/with-contenv bash' > /etc/services.d/code-server/run \
+ && echo 'echo "INFO: starting code-server..."' >> /etc/services.d/code-server/run \
+ && echo 'exec /usr/bin/code-server \\' >> /etc/services.d/code-server/run \
+ && echo '  --bind-addr 0.0.0.0:8888 \\' >> /etc/services.d/code-server/run \
+ && echo '  --disable-telemetry \\' >> /etc/services.d/code-server/run \
+ && echo '  --auth none' >> /etc/services.d/code-server/run \
+ && chmod 755 /etc/services.d/code-server/run
 
 USER $NB_UID
 
@@ -70,9 +85,11 @@ COPY --chown=${NB_USER}:${NB_GID} requirements.txt /tmp
 RUN python3 -m pip install -r /tmp/requirements.txt --quiet --no-cache-dir \
  && rm -f /tmp/requirements.txt
 
-# install - codeserver extensions
+# install - codeserver extensions - use the same versions as official image
 RUN code-server --install-extension "ms-python.python@${CODESERVER_PYTHON_VERSION}" --force \
  && code-server --install-extension "ms-toolsai.jupyter@${CODESERVER_JUPYTER_VERSION}" --force \
+ && code-server --install-extension "ms-toolsai.jupyter-renderers@${CODESERVER_JUPYTER_RENDERERS_VERSION}" --force \
+ && code-server --install-extension "ms-toolsai.jupyter-keymap@${CODESERVER_JUPYTER_KEYMAP_VERSION}" --force \
  && code-server --list-extensions --show-versions
 
 # Comment out the home directory copy if you don't have a home directory
