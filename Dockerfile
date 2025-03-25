@@ -26,6 +26,13 @@ RUN mkdir -pv ${CONDA_DIR} \
  && chown -R ${NB_USER}:${NB_GID} ${CONDA_DIR} \
  && chown -R ${NB_USER}:${USERS_GID} ${HOME}
 
+# Create conda init script BEFORE switching user
+RUN echo '#!/usr/bin/with-contenv bash' > /etc/cont-init.d/02-conda-init \
+ && echo 'conda init bash' >> /etc/cont-init.d/02-conda-init \
+ && echo 'conda activate base' >> /etc/cont-init.d/02-conda-init \
+ && chmod +x /etc/cont-init.d/02-conda-init \
+ && cat /etc/cont-init.d/02-conda-init
+
 USER $NB_UID
 
 # install - conda, pip, python (with explicit architecture setting)
@@ -62,28 +69,19 @@ RUN code-server --install-extension "ms-python.python@${CODESERVER_PYTHON_VERSIO
  && code-server --install-extension "ms-toolsai.jupyter@${CODESERVER_JUPYTER_VERSION}" --force \
  && code-server --list-extensions --show-versions
 
-# Skip copying home files since directory doesn't exist
-# COPY --chown=${NB_USER}:${NB_GID} home/. ${HOME}/
-
-# Create and configure 02-conda-init file
-USER root
-RUN mkdir -p /etc/cont-init.d
-RUN echo '#!/usr/bin/with-contenv bash' > /etc/cont-init.d/02-conda-init \
- && echo 'conda init bash' >> /etc/cont-init.d/02-conda-init \
- && echo 'conda activate base' >> /etc/cont-init.d/02-conda-init \
- && chmod +x /etc/cont-init.d/02-conda-init
-
 # s6 - 01-copy-tmp-home
 # NOTE: the contents of $HOME_TMP are copied to $HOME at runtime
 #       this is a workaround because a PVC will be mounted at $HOME
 #       and the contents of $HOME will be hidden
-USER $NB_UID
 RUN cp -p -r -T "${HOME}" "${HOME_TMP}" \
     # give group same access as user (needed for OpenShift)
  && chmod -R g=u "${HOME_TMP}"
 
 # Switch back to root for final configuration
 USER root
+
+# Expose port 8888
+EXPOSE 8888
 
 # Keep the original entrypoint
 ENTRYPOINT ["/init"]
