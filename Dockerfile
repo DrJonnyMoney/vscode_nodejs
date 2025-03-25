@@ -31,7 +31,8 @@ RUN mkdir -pv ${CONDA_DIR} \
  && chown -R ${NB_USER}:${USERS_GID} ${HOME}
 
 # Copy the 02-conda-init file from the repository to the container
-COPY --chown=${NB_USER}:${NB_GID} 02-conda-init /etc/cont-init.d/02-conda-init
+COPY 02-conda-init /etc/cont-init.d/
+RUN chmod 755 /etc/cont-init.d/02-conda-init
 
 USER $NB_UID
 
