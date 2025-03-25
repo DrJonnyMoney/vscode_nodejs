@@ -1,9 +1,5 @@
-#
-# NOTE: Use the Makefiles to build this image correctly.
-#
-
-ARG BASE_IMG=<codeserver>
-FROM $BASE_IMG
+# Using the Kubeflow codeserver image directly
+FROM kubeflownotebookswg/codeserver:latest
 
 ARG TARGETARCH
 
