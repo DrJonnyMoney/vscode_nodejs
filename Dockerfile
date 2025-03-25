@@ -1,14 +1,12 @@
 # Using the Kubeflow codeserver image directly
 FROM kubeflownotebookswg/codeserver:latest
 
+# Set a default value for TARGETARCH if not provided
 ARG TARGETARCH="amd64"
 
 USER root
 
 # args - software versions
-# https://open-vsx.org/extension/ms-python/python
-# https://open-vsx.org/extension/ms-toolsai/jupyter
-# https://github.com/ipython/ipykernel/releases
 ARG CODESERVER_PYTHON_VERSION=2025.0.0
 ARG CODESERVER_JUPYTER_VERSION=2024.11.0
 ARG IPYKERNEL_VERSION=6.29.5
@@ -30,13 +28,8 @@ RUN mkdir -pv ${CONDA_DIR} \
 
 USER $NB_UID
 
-# install - conda, pip, python
-RUN case "${TARGETARCH}" in \
-      amd64) MINIFORGE_ARCH="x86_64" ;; \
-      arm64) MINIFORGE_ARCH="aarch64" ;; \
-      ppc64le) MINIFORGE_ARCH="ppc64le" ;; \
-      *) echo "Unsupported architecture: ${TARGETARCH}"; exit 1 ;; \
-    esac \
+# install - conda, pip, python (with explicit architecture setting)
+RUN MINIFORGE_ARCH="x86_64" \
  && curl -fsSL "https://github.com/conda-forge/miniforge/releases/download/${MINIFORGE_VERSION}/Miniforge3-${MINIFORGE_VERSION}-Linux-${MINIFORGE_ARCH}.sh" -o /tmp/Miniforge3.sh \
  && curl -fsSL "https://github.com/conda-forge/miniforge/releases/download/${MINIFORGE_VERSION}/Miniforge3-${MINIFORGE_VERSION}-Linux-${MINIFORGE_ARCH}.sh.sha256" -o /tmp/Miniforge3.sh.sha256 \
  && echo "$(cat /tmp/Miniforge3.sh.sha256 | awk '{ print $1; }')  /tmp/Miniforge3.sh" | sha256sum -c - \
@@ -69,13 +62,28 @@ RUN code-server --install-extension "ms-python.python@${CODESERVER_PYTHON_VERSIO
  && code-server --install-extension "ms-toolsai.jupyter@${CODESERVER_JUPYTER_VERSION}" --force \
  && code-server --list-extensions --show-versions
 
-# home - pre-populate home with files for this image
-COPY --chown=${NB_USER}:${NB_GID} home/. ${HOME}/
+# Skip copying home files since directory doesn't exist
+# COPY --chown=${NB_USER}:${NB_GID} home/. ${HOME}/
+
+# Create and configure 02-conda-init file
+USER root
+RUN mkdir -p /etc/cont-init.d
+RUN echo '#!/usr/bin/with-contenv bash' > /etc/cont-init.d/02-conda-init \
+ && echo 'conda init bash' >> /etc/cont-init.d/02-conda-init \
+ && echo 'conda activate base' >> /etc/cont-init.d/02-conda-init \
+ && chmod +x /etc/cont-init.d/02-conda-init
 
 # s6 - 01-copy-tmp-home
 # NOTE: the contents of $HOME_TMP are copied to $HOME at runtime
 #       this is a workaround because a PVC will be mounted at $HOME
 #       and the contents of $HOME will be hidden
+USER $NB_UID
 RUN cp -p -r -T "${HOME}" "${HOME_TMP}" \
     # give group same access as user (needed for OpenShift)
  && chmod -R g=u "${HOME_TMP}"
+
+# Switch back to root for final configuration
+USER root
+
+# Keep the original entrypoint
+ENTRYPOINT ["/init"]
