@@ -8,7 +8,3 @@ RUN apt-get update && apt-get install -y \
     npm \
     # other packages...
     
-# Copy your custom scripts or files
-COPY 02-conda-init /etc/cont-init.d/
-
-USER $NB_UID
