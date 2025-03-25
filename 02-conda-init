@@ -1,5 +1,3 @@
 #!/command/with-contenv bash
 conda init bash
-source /opt/conda/etc/profile.d/conda.sh
-conda activate base || true
-exit 0
+conda activate base
