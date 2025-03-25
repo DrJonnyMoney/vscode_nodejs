@@ -1,7 +1,7 @@
 # Using the Kubeflow codeserver image directly
 FROM kubeflownotebookswg/codeserver:latest
 
-ARG TARGETARCH
+ARG TARGETARCH="amd64"
 
 USER root
 
