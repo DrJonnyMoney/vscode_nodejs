@@ -14,6 +14,13 @@ ARG MINIFORGE_VERSION=24.11.3-0
 ARG PIP_VERSION=24.3.1
 ARG PYTHON_VERSION=3.11.11
 
+# Create conda init script directly in the correct location
+RUN echo '#!/usr/bin/with-contenv bash' > /etc/cont-init.d/02-conda-init \
+ && echo 'conda init bash' >> /etc/cont-init.d/02-conda-init \
+ && echo 'conda activate base' >> /etc/cont-init.d/02-conda-init \
+ && chmod 755 /etc/cont-init.d/02-conda-init \
+ && chown ${NB_USER}:${NB_GID} /etc/cont-init.d/02-conda-init
+
 # setup environment for conda
 ENV CONDA_DIR /opt/conda
 ENV PATH "${CONDA_DIR}/bin:${PATH}"
@@ -25,13 +32,6 @@ RUN mkdir -pv ${CONDA_DIR} \
  && echo "conda activate base" >> /etc/profile \
  && chown -R ${NB_USER}:${NB_GID} ${CONDA_DIR} \
  && chown -R ${NB_USER}:${USERS_GID} ${HOME}
-
-# Create conda init script BEFORE switching user
-RUN echo '#!/usr/bin/with-contenv bash' > /etc/cont-init.d/02-conda-init \
- && echo 'conda init bash' >> /etc/cont-init.d/02-conda-init \
- && echo 'conda activate base' >> /etc/cont-init.d/02-conda-init \
- && chmod +x /etc/cont-init.d/02-conda-init \
- && cat /etc/cont-init.d/02-conda-init
 
 USER $NB_UID
 
@@ -79,6 +79,31 @@ RUN cp -p -r -T "${HOME}" "${HOME_TMP}" \
 
 # Switch back to root for final configuration
 USER root
+
+# Install Node.js, npm, and nvm for SvelteKit development
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg \
+    git \
+    build-essential \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g pnpm \
+    && npm install -g svelte-check \
+    && npm install -g typescript \
+    && npm install -g vite \
+    && npm install -g wscat \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install nvm
+ENV NVM_DIR /usr/local/nvm
+RUN mkdir -p $NVM_DIR \
+    && curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash \
+    && echo 'export NVM_DIR="/usr/local/nvm"' > /etc/profile.d/nvm.sh \
+    && echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> /etc/profile.d/nvm.sh \
+    && echo 'export NVM_DIR="/usr/local/nvm"' >> /etc/bash.bashrc \
+    && echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> /etc/bash.bashrc
 
 # Expose port 8888
 EXPOSE 8888
